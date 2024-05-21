@@ -1,4 +1,0 @@
-repository "Project Araqiel@ReddzzVC@cloud"
-  path "/"
-    smartbranch "/main" changeset "6"    
-     

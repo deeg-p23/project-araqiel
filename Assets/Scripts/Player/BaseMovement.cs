@@ -6,6 +6,7 @@ public class BaseMovement : MonoBehaviour
 {
 
     private CharacterController controller;
+    public Camera playerCamera;
 
     public float moveSpeed;
     public float jumpForce;
@@ -42,5 +43,18 @@ public class BaseMovement : MonoBehaviour
         movementVector.y = movementVector.y + (Physics.gravity.y * gravityScale);
 
         controller.Move(movementVector * Time.deltaTime);
+
+        // MOUSE MOVEMENT [alter camera view]
+        Vector3 mousePos = Input.mousePosition;
+
+        float origin_relative_mousex = mousePos.x - (Screen.width / 2);
+        float origin_relative_mousey = mousePos.y - (Screen.height / 2);
+        
+        Vector3 newCamPos = new Vector3();
+        newCamPos.x = origin_relative_mousex / (Screen.width / 3);
+        newCamPos.y = origin_relative_mousey / (Screen.height / 3) + 2f;
+        newCamPos.z = -14f;
+
+        playerCamera.transform.position = transform.position + newCamPos;
     }
 }
