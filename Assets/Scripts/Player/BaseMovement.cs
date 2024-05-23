@@ -39,7 +39,7 @@ public class BaseMovement : MonoBehaviour
         float localGravityScale = gravityScale;
         if (controller.isGrounded) 
         {
-            movementVector.y = 1f;
+            movementVector.y = 0.001f;
             if (Input.GetKeyDown(KeyCode.W)) 
             {
                 movementVector.y = jumpForce;
