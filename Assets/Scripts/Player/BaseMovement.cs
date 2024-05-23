@@ -12,6 +12,9 @@ public class BaseMovement : MonoBehaviour
     public float jumpForce;
     public float gravityScale;
 
+    public bool jumpActive;
+    public bool fallHeightReset;
+
     Vector3 movementVector;
 
 
@@ -35,10 +38,27 @@ public class BaseMovement : MonoBehaviour
         movementVector = new Vector3(xDisplacement * moveSpeed, movementVector.y, 0);
 
         if (controller.isGrounded) {
+            jumpActive = false;
+            fallHeightReset = true;
             if (Input.GetKeyDown(KeyCode.W)) {
                 movementVector.y = jumpForce;
+                jumpActive = true;
             }
         }
+        else 
+        {
+            
+            if (!jumpActive)
+            {
+                if (fallHeightReset)
+                {
+                    movementVector.y = 0f;
+                    fallHeightReset = false;
+                }
+            }
+        }
+
+        Debug.Log(jumpForce + "    compared to    " + movementVector.y);
 
         movementVector.y = movementVector.y + (Physics.gravity.y * gravityScale);
 
