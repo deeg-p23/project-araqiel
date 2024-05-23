@@ -25,26 +25,35 @@ public class BaseMovement : MonoBehaviour
         // COMBAT-STATE MOVEMENT [LEFT/RIGHT/JUMP]
         float xDisplacement = 0f;
 
-        if (Input.GetKey(KeyCode.A) && !Input.GetKey(KeyCode.D)) {
+        if (Input.GetKey(KeyCode.A) && !Input.GetKey(KeyCode.D)) 
+        {
             xDisplacement = -1f;
         }
-        if (!Input.GetKey(KeyCode.A) && Input.GetKey(KeyCode.D)) {
+        if (!Input.GetKey(KeyCode.A) && Input.GetKey(KeyCode.D)) 
+        {
             xDisplacement = 1f;
         }
 
         movementVector = new Vector3(xDisplacement * moveSpeed, movementVector.y, 0);
 
-        if (controller.isGrounded) {
+        float localGravityScale = gravityScale;
+        if (controller.isGrounded) 
+        {
             movementVector.y = 1f;
-            if (Input.GetKeyDown(KeyCode.W)) {
+            if (Input.GetKeyDown(KeyCode.W)) 
+            {
                 movementVector.y = jumpForce;
             }
         }
+        else
+        {
+            if (Input.GetKey(KeyCode.S))
+            {
+                localGravityScale *= 3f;
+            }
+        }
 
-        Debug.Log(jumpForce + "    compared to    " + movementVector.y);
-
-        movementVector.y = movementVector.y + (Physics.gravity.y * gravityScale);
-
+        movementVector.y = movementVector.y + (Physics.gravity.y * localGravityScale);
         controller.Move(movementVector * Time.deltaTime);
 
         // CAMERA MOVEMENT + AIM (mouse position)
