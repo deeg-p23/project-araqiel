@@ -12,11 +12,11 @@ public class BaseMovement : MonoBehaviour
     public float jumpForce;
     public float gravityScale;
 
-    Vector3 movementVector;
-
+    private Vector3 movementVector;
 
     void Start()
     {
+        movementVector = new Vector3(0, 0, 0);
         controller = GetComponent<CharacterController>();
     }
 
@@ -34,26 +34,30 @@ public class BaseMovement : MonoBehaviour
             xDisplacement = 1f;
         }
 
-        movementVector = new Vector3(xDisplacement * moveSpeed, movementVector.y, 0);
+        movementVector.x = xDisplacement * moveSpeed;
 
-        float localGravityScale = gravityScale;
         if (controller.isGrounded) 
         {
             movementVector.y = 0.001f;
             if (Input.GetKeyDown(KeyCode.W)) 
             {
-                movementVector.y = jumpForce;
-            }
-        }
-        else
-        {
-            if (Input.GetKey(KeyCode.S))
-            {
-                localGravityScale *= 3f;
+                movementVector.y = Mathf.Sqrt(jumpForce * -2f * gravityScale);
             }
         }
 
-        movementVector.y = movementVector.y + (Physics.gravity.y * localGravityScale);
+        float yDisplacement;
+        
+        if (Input.GetKey(KeyCode.S))
+        {
+            yDisplacement = gravityScale * Time.deltaTime * 2;
+        }
+        else
+        {
+            yDisplacement = gravityScale * Time.deltaTime;
+        }
+        
+        movementVector.y += yDisplacement;
+        
         controller.Move(movementVector * Time.deltaTime);
 
         // CAMERA MOVEMENT + AIM (mouse position)
