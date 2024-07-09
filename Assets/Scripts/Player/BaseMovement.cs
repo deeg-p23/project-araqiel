@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class BaseMovement : MonoBehaviour
 {
@@ -12,7 +13,13 @@ public class BaseMovement : MonoBehaviour
     public float jumpForce;
     public float gravityScale;
 
+    private float _coyoteTimer;
+    private bool _midJump;
+    
     private Vector3 movementVector;
+
+    [Header("UI Elements")] 
+    public Image DoorEntryArrow;
 
     void Start()
     {
@@ -36,13 +43,26 @@ public class BaseMovement : MonoBehaviour
 
         movementVector.x = xDisplacement * moveSpeed;
 
-        if (controller.isGrounded) 
+        if (controller.isGrounded)
         {
+            _midJump = false;
+            
+            _coyoteTimer = 0f;
             movementVector.y = 0.001f;
+            
+            if (Input.GetKeyDown(KeyCode.W))
+            {
+                _midJump = true;
+                movementVector.y = Mathf.Sqrt(jumpForce * -2f * gravityScale);
+            }
+        }
+        else if ((_coyoteTimer < 0.3f) && (!_midJump))
+        {
+            _coyoteTimer += Time.deltaTime;
             if (Input.GetKeyDown(KeyCode.W)) 
             {
                 movementVector.y = Mathf.Sqrt(jumpForce * -2f * gravityScale);
-            }
+            }        
         }
 
         float yDisplacement;
@@ -83,5 +103,44 @@ public class BaseMovement : MonoBehaviour
         newCamPos.z = -16f;
 
         playerCamera.transform.position = transform.position + newCamPos;
+        
+        // PLAYER INTERACTABLE DETECTION VIA RAYCAST
+        int layerMask = 255;
+        // layerMask = ~layerMask;
+        RaycastHit hit;
+        if (Physics.Raycast(this.transform.position, transform.TransformDirection(Vector3.forward), out hit, 5f,
+                layerMask))
+        {
+            Collider interactableCollider = hit.collider;
+            // DOOR INTERACTABLE
+            if (interactableCollider.CompareTag("Door"))
+            {
+                Vector3 arrowPlacement3D = playerCamera.WorldToScreenPoint(interactableCollider.transform.position);
+                DoorEntryArrow.rectTransform.anchoredPosition = new Vector2(arrowPlacement3D.x - (Screen.width / 2f),
+                    arrowPlacement3D.y - (Screen.height / 2f));
+                
+                DoorTransport currentDoor = interactableCollider.GetComponent<DoorTransport>();
+                
+                // Interactable Input for Door to Enter
+                if ((Input.GetKeyDown(KeyCode.F)) && (!currentDoor.doorLocked))
+                {
+                    controller.enabled = false;
+                    
+                    DoorTransport nextDoor = currentDoor.pairedDoor;
+                    Transform nextDoorTransform = nextDoor.gameObject.transform;
+                    Vector3 warpedPosition = nextDoorTransform.position;
+                    warpedPosition.y -= (nextDoorTransform.localScale.y / 2f);
+                    warpedPosition.y += (this.transform.localScale.y / 2f);
+                    controller.transform.position = warpedPosition;
+
+                    controller.enabled = true;
+                }
+            }
+            else
+            {
+                // Hide Door Entry UI
+                DoorEntryArrow.rectTransform.anchoredPosition = new Vector2((-2f) * Screen.width, (-2f) * Screen.height);
+            }
+        }
     }
 }
