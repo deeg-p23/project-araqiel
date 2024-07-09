@@ -66,16 +66,46 @@ public class BaseMovement : MonoBehaviour
         }
 
         float yDisplacement;
-        
+
+        // CROUCHING
+        CapsuleCollider playerCollider = this.GetComponent<CapsuleCollider>();
         if (Input.GetKey(KeyCode.S))
         {
             yDisplacement = gravityScale * Time.deltaTime * 2;
+
+            if (controller.isGrounded)
+            {
+                movementVector.x *= 0.5f;
+            }
+            
+            controller.height = 1.25f;
+            controller.center = new Vector3(0f, -0.375f, 0f);
+            playerCollider.height = 1.25f;
+            playerCollider.center = new Vector3(0f, -0.375f, 0f);
         }
         else
         {
             yDisplacement = gravityScale * Time.deltaTime;
+            
+            // CHECK IF PLAYER IS ALLOWED TO UNCROUCH WITH OVERHEAD RAYCAST
+            int layerMaskAbove = 255;
+            // layerMask = ~layerMask;
+            RaycastHit hitAbove;
+            if (!Physics.Raycast(this.transform.position, transform.TransformDirection(Vector3.up), out hitAbove,
+                    0.46875f,
+                    layerMaskAbove))
+            {
+                controller.height = 2f;
+                controller.center = new Vector3(0f, 0f, 0f);
+                playerCollider.height = 2f;
+                playerCollider.center = new Vector3(0f, 0f, 0f);   
+            }
+            else
+            {
+                movementVector.x *= 0.5f;
+            }
         }
-        
+
         movementVector.y += yDisplacement;
         
         controller.Move(movementVector * Time.deltaTime);
@@ -113,7 +143,7 @@ public class BaseMovement : MonoBehaviour
         {
             Collider interactableCollider = hit.collider;
             // DOOR INTERACTABLE
-            if (interactableCollider.CompareTag("Door"))
+            if (interactableCollider.CompareTag("Door") && (controller.isGrounded))
             {
                 Vector3 arrowPlacement3D = playerCamera.WorldToScreenPoint(interactableCollider.transform.position);
                 DoorEntryArrow.rectTransform.anchoredPosition = new Vector2(arrowPlacement3D.x - (Screen.width / 2f),
@@ -131,6 +161,7 @@ public class BaseMovement : MonoBehaviour
                     Vector3 warpedPosition = nextDoorTransform.position;
                     warpedPosition.y -= (nextDoorTransform.localScale.y / 2f);
                     warpedPosition.y += (this.transform.localScale.y / 2f);
+                    warpedPosition.z = 0f; // KEEP PLAYER ON Z = 0 FOR PROPER PLATFORM ALIGNMENT
                     controller.transform.position = warpedPosition;
 
                     controller.enabled = true;
