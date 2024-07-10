@@ -7,6 +7,19 @@ public class BaseMovement : MonoBehaviour
 {
 
     private CharacterController controller;
+    private Animator _animator;
+    private BoxCollider _playerCollider;
+
+    private string currentState;
+    
+    // ANIMATOR STATES
+
+    private const string STAND_WALK = "Armature|WALK_FORWARD_UNARMED";
+    private const string STAND_IDLE = "Armature|IDLE_UNARMED";
+    private const string CROUCH_WALK = "CRAWL_FORWARD_UNARMED";
+    private const string CROUCH_IDLE = "CROUCH_IDLE_UNARMED";
+    private const string STAND_JUMP = "Armature|JUMP_START_UNARMED";
+    
     public Camera playerCamera;
 
     public float moveSpeed;
@@ -15,6 +28,9 @@ public class BaseMovement : MonoBehaviour
 
     private float _coyoteTimer;
     private bool _midJump;
+
+    private bool _crouchingGrounded;
+    private bool _crouchingCeilingLocked;
     
     private Vector3 movementVector;
 
@@ -25,10 +41,13 @@ public class BaseMovement : MonoBehaviour
     {
         movementVector = new Vector3(0, 0, 0);
         controller = GetComponent<CharacterController>();
+        _animator = GetComponent<Animator>();
+        _playerCollider = this.GetComponent<BoxCollider>();
     }
 
     void Update()
     {
+
         // COMBAT-STATE MOVEMENT [LEFT/RIGHT/JUMP]
         float xDisplacement = 0f;
 
@@ -50,7 +69,7 @@ public class BaseMovement : MonoBehaviour
             _coyoteTimer = 0f;
             movementVector.y = 0.001f;
             
-            if (Input.GetKeyDown(KeyCode.W))
+            if (Input.GetKeyDown(KeyCode.W) && (!_crouchingCeilingLocked))
             {
                 _midJump = true;
                 movementVector.y = Mathf.Sqrt(jumpForce * -2f * gravityScale);
@@ -68,48 +87,91 @@ public class BaseMovement : MonoBehaviour
         float yDisplacement;
 
         // CROUCHING
-        CapsuleCollider playerCollider = this.GetComponent<CapsuleCollider>();
         if (Input.GetKey(KeyCode.S))
         {
             yDisplacement = gravityScale * Time.deltaTime * 2;
 
             if (controller.isGrounded)
             {
+                _crouchingGrounded = true;
                 movementVector.x *= 0.5f;
+                _crouchingCeilingLocked = false;
+            }
+            else
+            {
+                _crouchingGrounded = false;
+                _crouchingCeilingLocked = false;
             }
             
-            controller.height = 1.25f;
-            controller.center = new Vector3(0f, -0.375f, 0f);
-            playerCollider.height = 1.25f;
-            playerCollider.center = new Vector3(0f, -0.375f, 0f);
+            controller.height = 5.8125f;
+            controller.center = new Vector3(0.1346926f, 2.9f, 0.3795886f);
+            _playerCollider.size = new Vector3(4f, 5.8125f, 4f);
+            _playerCollider.center = new Vector3(0.1346926f, 2.9f, 0.3795886f);
         }
         else
         {
             yDisplacement = gravityScale * Time.deltaTime;
             
             // CHECK IF PLAYER IS ALLOWED TO UNCROUCH WITH OVERHEAD RAYCAST
-            int layerMaskAbove = 255;
-            // layerMask = ~layerMask;
+            LayerMask layerMaskAbove = LayerMask.GetMask("Wall");
             RaycastHit hitAbove;
             if (!Physics.Raycast(this.transform.position, transform.TransformDirection(Vector3.up), out hitAbove,
-                    0.46875f,
+                    3.4875f,
                     layerMaskAbove))
             {
-                controller.height = 2f;
-                controller.center = new Vector3(0f, 0f, 0f);
-                playerCollider.height = 2f;
-                playerCollider.center = new Vector3(0f, 0f, 0f);   
+
+                controller.height = 9.3f;
+                controller.center = new Vector3(0.1346926f, 4.632017f, 0.3795886f);
+                _playerCollider.size = new Vector3(4f, 9.3f, 4f);
+                _playerCollider.center = new Vector3(0.1346926f, 4.632017f, 0.3795886f);
+
+                _crouchingGrounded = false;
+                _crouchingCeilingLocked = false;
             }
             else
             {
                 movementVector.x *= 0.5f;
+                // Debug.Log(movementVector.x);
+                _crouchingCeilingLocked = true;
+                _crouchingGrounded = true;
             }
         }
 
         movementVector.y += yDisplacement;
         
         controller.Move(movementVector * Time.deltaTime);
-
+        
+        // SETTING ANIMATOR STATES
+        if (controller.isGrounded)
+        {
+            if (movementVector.x != 0)
+            {
+                if (_crouchingGrounded)
+                {
+                    SetAnimationState(CROUCH_WALK);
+                }
+                else
+                {
+                    SetAnimationState(STAND_WALK);
+                }
+            }
+            else
+            {
+                if (_crouchingGrounded)
+                {
+                    SetAnimationState(CROUCH_IDLE);
+                }
+                else
+                {
+                    SetAnimationState(STAND_IDLE);
+                }
+            }
+        }
+        else
+        {
+            SetAnimationState(STAND_JUMP);
+        }
+        
         // CAMERA MOVEMENT + AIM (mouse position)
         Vector3 mousePos = Input.mousePosition;
 
@@ -121,6 +183,16 @@ public class BaseMovement : MonoBehaviour
 
         newCamPos.x = (Mathf.Abs(origin_relative_mousex) < (Screen.width / 2f)) ? (origin_relative_mousex) : ((origin_relative_mousex < 0f) ? (-1f * Screen.width / 2f) : (Screen.width / 2f));
         newCamPos.y = (Mathf.Abs(origin_relative_mousey) < (Screen.height / 2f)) ? (origin_relative_mousey) : ((origin_relative_mousey < 0f) ? (-1f * Screen.height / 2f) : (Screen.height / 2f));
+        
+        // Flip player Scale.z if mouse is facing left side of screen
+        if (origin_relative_mousex < 0)
+        {
+            this.transform.localScale = new Vector3(0.35f, 0.35f, (-1f) * 0.35f);
+        }
+        else
+        {
+            this.transform.localScale = new Vector3(0.35f, 0.35f, 0.35f);
+        }
         
         // THE FOLLOWING ARE MAGIC NUMBERS FOR NOW, MAKE THEM CHANGEABLE VARIABLES LATER ON FOR CUTSCENES?
         // 130f is a cam scale factor, 
@@ -138,10 +210,11 @@ public class BaseMovement : MonoBehaviour
         int layerMask = 255;
         // layerMask = ~layerMask;
         RaycastHit hit;
-        if (Physics.Raycast(this.transform.position, transform.TransformDirection(Vector3.forward), out hit, 5f,
+        if (Physics.Raycast(this.transform.position, new Vector3(0f, 0f, 1f), out hit, 5f,
                 layerMask))
         {
             Collider interactableCollider = hit.collider;
+            
             // DOOR INTERACTABLE
             if (interactableCollider.CompareTag("Door") && (controller.isGrounded))
             {
@@ -173,5 +246,16 @@ public class BaseMovement : MonoBehaviour
                 DoorEntryArrow.rectTransform.anchoredPosition = new Vector2((-2f) * Screen.width, (-2f) * Screen.height);
             }
         }
+    }
+
+    void SetAnimationState(string nextState)
+    {
+        if (currentState == nextState)
+        {
+            return;
+        }
+
+        _animator.Play(nextState);
+        currentState = nextState;
     }
 }
