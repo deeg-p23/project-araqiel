@@ -29,8 +29,8 @@ public class BaseMovement : MonoBehaviour
     private float _coyoteTimer;
     private bool _midJump;
 
-    private bool _crouchingGrounded;
-    private bool _crouchingCeilingLocked;
+    public bool _crouchingGrounded;
+    public bool _crouchingCeilingLocked;
     
     private Vector3 movementVector;
 
@@ -104,9 +104,9 @@ public class BaseMovement : MonoBehaviour
             }
             
             controller.height = 5.8125f;
-            controller.center = new Vector3(0.1346926f, 2.9f, 0.3795886f);
+            controller.center = new Vector3(0f, 2.9f, 0f);
             _playerCollider.size = new Vector3(4f, 5.8125f, 4f);
-            _playerCollider.center = new Vector3(0.1346926f, 2.9f, 0.3795886f);
+            _playerCollider.center = new Vector3(0f, 2.9f, 0f);
         }
         else
         {
@@ -121,9 +121,9 @@ public class BaseMovement : MonoBehaviour
             {
 
                 controller.height = 9.3f;
-                controller.center = new Vector3(0.1346926f, 4.632017f, 0.3795886f);
+                controller.center = new Vector3(0f, 4.632017f, 0f);
                 _playerCollider.size = new Vector3(4f, 9.3f, 4f);
-                _playerCollider.center = new Vector3(0.1346926f, 4.632017f, 0.3795886f);
+                _playerCollider.center = new Vector3(0f, 4.632017f, 0f);
 
                 _crouchingGrounded = false;
                 _crouchingCeilingLocked = false;
@@ -138,8 +138,10 @@ public class BaseMovement : MonoBehaviour
         }
 
         movementVector.y += yDisplacement;
-        
         controller.Move(movementVector * Time.deltaTime);
+        Vector3 finalPosition = new Vector3(transform.position.x, transform.position.y, 0f);
+        transform.position = finalPosition; // anti-clipping safety measure
+        
         
         // SETTING ANIMATOR STATES
         if (controller.isGrounded)
@@ -185,13 +187,14 @@ public class BaseMovement : MonoBehaviour
         newCamPos.y = (Mathf.Abs(origin_relative_mousey) < (Screen.height / 2f)) ? (origin_relative_mousey) : ((origin_relative_mousey < 0f) ? (-1f * Screen.height / 2f) : (Screen.height / 2f));
         
         // Flip player Scale.z if mouse is facing left side of screen
+
         if (origin_relative_mousex < 0)
         {
-            this.transform.localScale = new Vector3(0.35f, 0.35f, (-1f) * 0.35f);
+            this.transform.eulerAngles = new Vector3(0f, -90f, 0f);
         }
         else
         {
-            this.transform.localScale = new Vector3(0.35f, 0.35f, 0.35f);
+            this.transform.eulerAngles = new Vector3(0f, 90f, 0f);
         }
         
         // THE FOLLOWING ARE MAGIC NUMBERS FOR NOW, MAKE THEM CHANGEABLE VARIABLES LATER ON FOR CUTSCENES?
