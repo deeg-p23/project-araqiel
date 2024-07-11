@@ -56,22 +56,25 @@ public class Ranged : MonoBehaviour
         float newX = Mathf.Cos(theta);
         float newY = Mathf.Sin(theta);
         
-        Vector3 handPoint = new Vector3(newX, newY + _playerGunRadiusOffset, 0f);
+        Vector3 handPoint = new Vector3(0.8f * newX, (0.8f * newY) + _playerGunRadiusOffset, 0f);
         // Vector3 elbowPoint = handPoint / 2f;
         
         float origin_relative_mousex = mousePosition.x - (Screen.width / 2f);
         
-        leftHandTarget.position = handPoint + transform.position;
         Debug.Log((-1) * theta);
 
         if (origin_relative_mousex < 0f)
         {
+            handPoint.z = 0.25f;
             leftHandTarget.eulerAngles = new Vector3((-1) * theta * 180f / Mathf.PI, 90f, 180f);
         }
         else
         {
+            handPoint.z = -0.25f;
             leftHandTarget.eulerAngles = new Vector3((-1) * theta * 180f / Mathf.PI, 90f, 0f);
         }
+        
+        leftHandTarget.position = handPoint + transform.position;
         
         // rightHandTarget.position = handPoint + transform.position;
         // leftElbowTarget.position = elbowPoint + transform.position;
