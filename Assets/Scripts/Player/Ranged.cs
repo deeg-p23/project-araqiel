@@ -61,8 +61,6 @@ public class Ranged : MonoBehaviour
         
         float origin_relative_mousex = mousePosition.x - (Screen.width / 2f);
         
-        Debug.Log((-1) * theta);
-
         if (origin_relative_mousex < 0f)
         {
             handPoint.z = 0.25f;
@@ -94,6 +92,21 @@ public class Ranged : MonoBehaviour
         {
             // Debug.Log(handPoint);
             Debug.DrawRay(handPoint, handPoint + new Vector3(0f, 1f, 0f), Color.red, 0.05f, false);
+        }
+        
+        // RIG LAYER [DIS/EN]ABLING BASED ON MOVEMENT & MOUSE INPUTS
+        List<RigLayer> rigLayers = rigBuilder.layers;
+        if ((!Input.GetMouseButton(1)) || ((baseMovement.running) && (Input.GetMouseButton(1))))
+        {
+            rigLayers[0].active = false;
+            rigLayers[1].active = false;
+            handRigPistol.gameObject.SetActive(false);
+        }
+        else
+        {
+            rigLayers[0].active = true;
+            rigLayers[1].active = true;
+            handRigPistol.gameObject.SetActive(true);
         }
     }
 

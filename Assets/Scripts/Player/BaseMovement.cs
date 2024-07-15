@@ -19,15 +19,24 @@ public class BaseMovement : MonoBehaviour
     private const string CROUCH_WALK = "CRAWL_FORWARD_UNARMED";
     private const string CROUCH_IDLE = "CROUCH_IDLE_UNARMED";
     private const string STAND_JUMP = "Armature|JUMP_START_UNARMED";
+    private const string RUN = "RUN";
     
     public Camera playerCamera;
 
     public float moveSpeed;
+    public float runSpeedMultiplier;
     public float jumpForce;
     public float gravityScale;
 
     private float _coyoteTimer;
     private bool _midJump;
+    private bool _previousIsGrounded;
+    public bool running;
+
+    private bool _runJumping;
+    private bool _previousRunning;
+    private float _previousMovementSpeed;
+    private float _runJumpSavedSpeed;
 
     public bool _crouchingGrounded;
     public bool _crouchingCeilingLocked;
@@ -53,11 +62,11 @@ public class BaseMovement : MonoBehaviour
 
         if (Input.GetKey(KeyCode.A) && !Input.GetKey(KeyCode.D)) 
         {
-            xDisplacement = -1f;
+            xDisplacement = -(1f) * moveSpeed;
         }
         if (!Input.GetKey(KeyCode.A) && Input.GetKey(KeyCode.D)) 
         {
-            xDisplacement = 1f;
+            xDisplacement = moveSpeed;
         }
 
         movementVector.x = xDisplacement * moveSpeed;
@@ -136,19 +145,65 @@ public class BaseMovement : MonoBehaviour
                 _crouchingGrounded = true;
             }
         }
+        
+        
+        Vector3 mousePos = Input.mousePosition;
+        
+        // divide screen width/height by 2 to get the edge-to-origin length
+        float origin_relative_mousex = mousePos.x - (Screen.width / 2f);
+        float origin_relative_mousey = mousePos.y - (Screen.height / 2f);
+        
+        if (Input.GetKey(KeyCode.LeftShift) && !_crouchingGrounded && !_crouchingCeilingLocked && controller.isGrounded && 
+            (((origin_relative_mousex < 0f) && (movementVector.x < 0f)) || ((origin_relative_mousex > 0f) && (movementVector.x > 0f))))
+        {
+            running = true;
+            movementVector.x *= runSpeedMultiplier;
+        }
+        else
+        {
+            running = false;
+        }
+        
+        if (_runJumping)
+        {
+            Debug.Log(_runJumping);
 
+            if (!running)
+            {
+                movementVector.x *= runSpeedMultiplier;
+            }
+
+            if (controller.isGrounded)
+            {
+                _runJumping = false;
+            }
+        }
+        
+        if (_previousIsGrounded && Input.GetKeyDown(KeyCode.W) && _previousRunning)
+        {
+
+            _runJumping = true;
+        }
+        
         movementVector.y += yDisplacement;
         controller.Move(movementVector * Time.deltaTime);
         Vector3 finalPosition = new Vector3(transform.position.x, transform.position.y, 0f);
         transform.position = finalPosition; // anti-clipping safety measure
-        
+
+        _previousIsGrounded = controller.isGrounded;
+        _previousRunning = running;
+        _previousMovementSpeed = movementVector.x;
         
         // SETTING ANIMATOR STATES
         if (controller.isGrounded)
         {
             if (movementVector.x != 0)
             {
-                if (_crouchingGrounded)
+                if (running)
+                {
+                    SetAnimationState(RUN);
+                }
+                else if (_crouchingGrounded)
                 {
                     SetAnimationState(CROUCH_WALK);
                 }
@@ -175,11 +230,6 @@ public class BaseMovement : MonoBehaviour
         }
         
         // CAMERA MOVEMENT + AIM (mouse position)
-        Vector3 mousePos = Input.mousePosition;
-
-        // divide screen width/height by 2 to get the edge-to-origin length
-        float origin_relative_mousex = mousePos.x - (Screen.width / 2f);
-        float origin_relative_mousey = mousePos.y - (Screen.height / 2f);
         
         Vector3 newCamPos = new Vector3();
 
