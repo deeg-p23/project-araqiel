@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -20,6 +21,7 @@ public class BaseMovement : MonoBehaviour
     private const string CROUCH_IDLE = "CROUCH_IDLE_UNARMED";
     private const string STAND_JUMP = "Armature|JUMP_START_UNARMED";
     private const string RUN = "RUN";
+    private const string SLIDE = "Armature|SLIDE";
     
     public Camera playerCamera;
 
@@ -32,6 +34,12 @@ public class BaseMovement : MonoBehaviour
     private bool _midJump;
     private bool _previousIsGrounded;
     public bool running;
+    
+    public bool _sliding;
+    private float _slideCounter;
+    public float slideTimeLength;
+    private int _slideDirectionSign;
+    private bool _playerLanded;
 
     private bool _runJumping;
     private bool _previousRunning;
@@ -56,7 +64,7 @@ public class BaseMovement : MonoBehaviour
 
     void Update()
     {
-
+        
         // COMBAT-STATE MOVEMENT [LEFT/RIGHT/JUMP]
         float xDisplacement = 0f;
 
@@ -166,8 +174,6 @@ public class BaseMovement : MonoBehaviour
         
         if (_runJumping)
         {
-            Debug.Log(_runJumping);
-
             if (!running)
             {
                 movementVector.x *= runSpeedMultiplier;
@@ -185,21 +191,74 @@ public class BaseMovement : MonoBehaviour
             _runJumping = true;
         }
         
+        // SLIDING (running & crouching)
+        if (!_previousIsGrounded && controller.isGrounded)
+        {
+            // Debug.Log(_previousRunning + " " + controller.isGrounded + " " + Input.GetKeyUp(KeyCode.S) + " " + _sliding);    
+        }
+        
+        if ((_previousRunning || (running && _playerLanded)) && controller.isGrounded && ((Input.GetKey(KeyCode.S) && _playerLanded) || (Input.GetKeyDown(KeyCode.S))) && !_sliding)
+        {
+            _sliding = true;
+            _slideCounter = 0f;
+
+            if (movementVector.x < 0f)
+            {
+                _slideDirectionSign = -1;
+            }
+            else
+            {
+                _slideDirectionSign = 1;
+            }
+        }
+
+        if (_sliding)
+        {
+            // SLIDE CANCEL IF OPPOSITE DIRECTION, JUMP, FALL, OR CROUCH RELEASE
+            if (_slideDirectionSign == -1f)
+            {
+                if ((movementVector.x > 0f) || !controller.isGrounded)
+                {
+                    _sliding = false;
+                }
+            }
+            else
+            {
+                if ((movementVector.x < 0f) || !controller.isGrounded)
+                {
+                    _sliding = false;
+                }            
+            }
+            
+            if (_slideCounter < slideTimeLength)
+            {
+                running = false; // set running to false so that player can shoot all directions when sliding
+                
+                _slideCounter += Time.deltaTime;
+                movementVector.x = _slideDirectionSign * 3f * moveSpeed * runSpeedMultiplier *
+                                   (1 - (_slideCounter / slideTimeLength));
+            }
+            else
+            {
+                _sliding = false;
+            }
+        }
+        
         movementVector.y += yDisplacement;
         controller.Move(movementVector * Time.deltaTime);
         Vector3 finalPosition = new Vector3(transform.position.x, transform.position.y, 0f);
         transform.position = finalPosition; // anti-clipping safety measure
-
-        _previousIsGrounded = controller.isGrounded;
-        _previousRunning = running;
-        _previousMovementSpeed = movementVector.x;
         
         // SETTING ANIMATOR STATES
         if (controller.isGrounded)
         {
             if (movementVector.x != 0)
             {
-                if (running)
+                if (_sliding)
+                {
+                    SetAnimationState(SLIDE);
+                }
+                else if (running)
                 {
                     SetAnimationState(RUN);
                 }
@@ -299,6 +358,17 @@ public class BaseMovement : MonoBehaviour
                 DoorEntryArrow.rectTransform.anchoredPosition = new Vector2((-2f) * Screen.width, (-2f) * Screen.height);
             }
         }
+    }
+
+    private void LateUpdate()
+    {
+        if (!_previousIsGrounded && controller.isGrounded)
+        {
+            _playerLanded = true;
+        }
+        _previousIsGrounded = controller.isGrounded;
+        _previousRunning = running;
+        _previousMovementSpeed = movementVector.x;    
     }
 
     void SetAnimationState(string nextState)

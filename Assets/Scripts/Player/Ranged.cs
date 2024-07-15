@@ -23,7 +23,7 @@ public class Ranged : MonoBehaviour
     public Transform rightElbowTarget;
     public RigBuilder rigBuilder;
 
-    private float _playerGunRadiusOffset;
+    private Vector3 _playerGunRadiusOffset;
 
     void Start()
     {
@@ -38,28 +38,45 @@ public class Ranged : MonoBehaviour
         Vector3 mousePosition = Input.mousePosition;
         mousePosition.z = 18f;
         
+        float origin_relative_mousex = mousePosition.x - (Screen.width / 2f);
+        
         Vector3 aimLocation = playerCamera.ScreenToWorldPoint(mousePosition);
         aimLocation.z = 0f;
 
-        if (baseMovement._crouchingGrounded || baseMovement._crouchingCeilingLocked)
+        if (baseMovement._sliding)
         {
-            _playerGunRadiusOffset = 1.25f;
+            // gun radial origin when sliding to the left
+            if (origin_relative_mousex < 0f)
+            {
+                _playerGunRadiusOffset = new Vector3(1f, 1.125f, 0f);
+            }
+            // gun radial origin when sliding to the right
+            else
+            {
+                _playerGunRadiusOffset = new Vector3(-1f, 1.125f, 0f);
+            }
         }
+        // gun radial origin when crouching/walking
+        else if (baseMovement._crouchingGrounded || baseMovement._crouchingCeilingLocked)
+        {
+            _playerGunRadiusOffset = new Vector3(0f, 1.25f, 0f);
+        }
+        // gun radial origin whenever else player is aiming
         else
         {
-            _playerGunRadiusOffset = 2.5f;
+            _playerGunRadiusOffset = new Vector3(0f, 2.5f, 0f);
         }
+
+        Debug.Log(_playerGunRadiusOffset);
         
         
         // SETTING LOCATION FOR PISTOL GRIP, ROTATING AROUND PLAYER BY CURSOR. RADIUS IS 1f.
-        float theta = Mathf.Atan2(aimLocation.y - transform.position.y - _playerGunRadiusOffset, aimLocation.x - transform.position.x);
+        float theta = Mathf.Atan2(aimLocation.y - transform.position.y - _playerGunRadiusOffset.y, aimLocation.x - transform.position.x - _playerGunRadiusOffset.x);
         float newX = Mathf.Cos(theta);
         float newY = Mathf.Sin(theta);
         
-        Vector3 handPoint = new Vector3(0.8f * newX, (0.8f * newY) + _playerGunRadiusOffset, 0f);
+        Vector3 handPoint = new Vector3((0.8f * newX) + _playerGunRadiusOffset.x, (0.8f * newY) + _playerGunRadiusOffset.y, 0f);
         // Vector3 elbowPoint = handPoint / 2f;
-        
-        float origin_relative_mousex = mousePosition.x - (Screen.width / 2f);
         
         if (origin_relative_mousex < 0f)
         {
@@ -81,8 +98,8 @@ public class Ranged : MonoBehaviour
 
         
         if (Mathf.Pow(
-                (Mathf.Pow(aimLocation.y - transform.position.y - _playerGunRadiusOffset, 2f) +
-                 Mathf.Pow(aimLocation.x - transform.position.x, 2f)), 0.5f)
+                (Mathf.Pow(aimLocation.y - transform.position.y - _playerGunRadiusOffset.y, 2f) +
+                 Mathf.Pow(aimLocation.x - transform.position.x - _playerGunRadiusOffset.x, 2f)), 0.5f)
             > 1f)
         {
             // Debug.Log(aimLocation);

@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 0}
-  m_IndirectSpecularColor: {r: 0.18387082, g: 0.22873586, b: 0.30147535, a: 1}
+  m_IndirectSpecularColor: {r: 0.18387036, g: 0.22873512, b: 0.3014739, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -3579,6 +3579,7 @@ MonoBehaviour:
   jumpForce: 2.25
   gravityScale: -42
   running: 0
+  slideTimeLength: 2
   _crouchingGrounded: 0
   _crouchingCeilingLocked: 0
   DoorEntryArrow: {fileID: 924644948}
