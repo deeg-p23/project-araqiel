@@ -65,10 +65,7 @@ public class Ranged : MonoBehaviour
         else
         {
             _playerGunRadiusOffset = new Vector3(0f, 2.5f, 0f);
-        }
-
-        Debug.Log(_playerGunRadiusOffset);
-        
+        }        
         
         // SETTING LOCATION FOR PISTOL GRIP, ROTATING AROUND PLAYER BY CURSOR. RADIUS IS 1f.
         float theta = Mathf.Atan2(aimLocation.y - transform.position.y - _playerGunRadiusOffset.y, aimLocation.x - transform.position.x - _playerGunRadiusOffset.x);

@@ -25,14 +25,20 @@ public class BaseMovement : MonoBehaviour
     
     public Camera playerCamera;
 
-    public float moveSpeed;
-    public float runSpeedMultiplier;
+    [Header("X Movement")]
+    [Range(0f,5f)]public float moveSpeed;
+    [Range(1f,2f)]public float runSpeedMultiplier;
+    [Range(0f,1f)]public float crouchSpeedMultiplier;
+    
+    [Header("Y Movement")]
     public float jumpForce;
     public float gravityScale;
 
     private float _coyoteTimer;
     private bool _midJump;
     private bool _previousIsGrounded;
+    
+    [Header("Others...")]
     public bool running;
     
     public bool _sliding;
@@ -41,7 +47,11 @@ public class BaseMovement : MonoBehaviour
     private int _slideDirectionSign;
     private bool _playerLanded;
 
-    private bool _runJumping;
+    private float _playerTakeOffSpeed;
+    private bool _playerTakeOffLeft;
+    private bool _playerTakeOffRight;
+    private bool _playerTakeOffMomentumMaintained;
+
     private bool _previousRunning;
     private float _previousMovementSpeed;
     private float _runJumpSavedSpeed;
@@ -111,7 +121,7 @@ public class BaseMovement : MonoBehaviour
             if (controller.isGrounded)
             {
                 _crouchingGrounded = true;
-                movementVector.x *= 0.5f;
+                movementVector.x *= crouchSpeedMultiplier;
                 _crouchingCeilingLocked = false;
             }
             else
@@ -121,6 +131,7 @@ public class BaseMovement : MonoBehaviour
             }
             
             controller.height = 5.8125f;
+            controller.radius = 2f;
             controller.center = new Vector3(0f, 2.9f, 0f);
             _playerCollider.size = new Vector3(4f, 5.8125f, 4f);
             _playerCollider.center = new Vector3(0f, 2.9f, 0f);
@@ -138,6 +149,7 @@ public class BaseMovement : MonoBehaviour
             {
 
                 controller.height = 9.3f;
+                controller.radius = 2f;
                 controller.center = new Vector3(0f, 4.632017f, 0f);
                 _playerCollider.size = new Vector3(4f, 9.3f, 4f);
                 _playerCollider.center = new Vector3(0f, 4.632017f, 0f);
@@ -147,8 +159,7 @@ public class BaseMovement : MonoBehaviour
             }
             else
             {
-                movementVector.x *= 0.5f;
-                // Debug.Log(movementVector.x);
+                movementVector.x *= crouchSpeedMultiplier;
                 _crouchingCeilingLocked = true;
                 _crouchingGrounded = true;
             }
@@ -171,33 +182,27 @@ public class BaseMovement : MonoBehaviour
         {
             running = false;
         }
-        
-        if (_runJumping)
-        {
-            if (!running)
-            {
-                movementVector.x *= runSpeedMultiplier;
-            }
 
-            if (controller.isGrounded)
+        if (_playerTakeOffMomentumMaintained)
+        {
+            if ((_playerTakeOffLeft == Input.GetKey(KeyCode.A)) && (_playerTakeOffRight == Input.GetKey(KeyCode.D)) && !controller.isGrounded)
             {
-                _runJumping = false;
+                _playerTakeOffMomentumMaintained = true;
+                movementVector.x = _playerTakeOffSpeed;
+            }
+            else
+            {
+                _playerTakeOffMomentumMaintained = false;
             }
         }
-        
-        if (_previousIsGrounded && Input.GetKeyDown(KeyCode.W) && _previousRunning)
-        {
 
-            _runJumping = true;
-        }
-        
-        // SLIDING (running & crouching)
-        if (!_previousIsGrounded && controller.isGrounded)
+        if (Input.GetKeyDown(KeyCode.S))
         {
-            // Debug.Log(_previousRunning + " " + controller.isGrounded + " " + Input.GetKeyUp(KeyCode.S) + " " + _sliding);    
+            Debug.Log("gerf");
         }
         
-        if ((_previousRunning || (running && _playerLanded)) && controller.isGrounded && ((Input.GetKey(KeyCode.S) && _playerLanded) || (Input.GetKeyDown(KeyCode.S))) && !_sliding)
+        // Debug.Log(controller.isGrounded + " " + _crouchingCeilingLocked + " " + Input.GetKeyDown(KeyCode.S) + " " + running);
+        if ((controller.isGrounded && !_crouchingCeilingLocked && Input.GetKeyDown(KeyCode.S) && _previousRunning) || (_playerLanded && Input.GetKey(KeyCode.S) && Input.GetKey(KeyCode.LeftShift)))
         {
             _sliding = true;
             _slideCounter = 0f;
@@ -235,12 +240,34 @@ public class BaseMovement : MonoBehaviour
                 running = false; // set running to false so that player can shoot all directions when sliding
                 
                 _slideCounter += Time.deltaTime;
-                movementVector.x = _slideDirectionSign * 3f * moveSpeed * runSpeedMultiplier *
-                                   (1 - (_slideCounter / slideTimeLength));
+                
+                // movementVector.x = directionSign * (((runSpeed - crouchSpeed) * (timeScale)) + crouchSpeed)
+                // ---------------> = sign * (((max - min) * (scale)) + min)
+                
+                // so that the sliding movement speed decreases to a clamped minimum, rather than 0
+                // this prevents sliding from hindering flow of player movement
+                movementVector.x = _slideDirectionSign *
+                                   ((moveSpeed * moveSpeed * (runSpeedMultiplier - crouchSpeedMultiplier)) *
+                                   (1 - (_slideCounter / slideTimeLength)) + (moveSpeed * moveSpeed * crouchSpeedMultiplier));
             }
             else
             {
+                _sliding = false;   
+            }
+
+            // SLIDE CANCEL IF MOVEMENT HALTS (HITTING A WALL)
+            if (controller.velocity.x == 0f)
+            {
                 _sliding = false;
+            }
+
+            if (controller.isGrounded)
+            {
+                controller.height = 3.03f;
+                controller.center = new Vector3(0f, 2.12f, 0f);
+                controller.radius = 2.15f;
+                _playerCollider.size = new Vector3(4f, 4.3f, 8.5f);
+                _playerCollider.center = new Vector3(0f, 2.12f, 0f);
             }
         }
         
@@ -366,6 +393,19 @@ public class BaseMovement : MonoBehaviour
         {
             _playerLanded = true;
         }
+        else
+        {
+            _playerLanded = false;
+        }
+
+        if (_previousIsGrounded && !controller.isGrounded)
+        {
+            _playerTakeOffSpeed = movementVector.x;
+            _playerTakeOffMomentumMaintained = true;
+            _playerTakeOffLeft = Input.GetKey(KeyCode.A);
+            _playerTakeOffRight = Input.GetKey(KeyCode.D);
+        }
+        
         _previousIsGrounded = controller.isGrounded;
         _previousRunning = running;
         _previousMovementSpeed = movementVector.x;    
@@ -378,7 +418,7 @@ public class BaseMovement : MonoBehaviour
             return;
         }
 
-        _animator.Play(nextState);
+        _animator.CrossFade(nextState, 0.1f);
         currentState = nextState;
     }
 }
