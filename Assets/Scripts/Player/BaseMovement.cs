@@ -26,13 +26,17 @@ public class BaseMovement : MonoBehaviour
     public Camera playerCamera;
 
     [Header("X Movement")]
-    [Range(0f,5f)]public float moveSpeed;
-    [Range(1f,2f)]public float runSpeedMultiplier;
-    [Range(0f,1f)]public float crouchSpeedMultiplier;
+    public float moveSpeed;
+    public float runSpeedMultiplier;
+    public float crouchSpeedMultiplier;
     
     [Header("Y Movement")]
     public float jumpForce;
     public float gravityScale;
+
+    private float _previousYVel;
+    private float _YVel;
+    private bool _jumping;
 
     private float _coyoteTimer;
     private bool _midJump;
@@ -75,27 +79,60 @@ public class BaseMovement : MonoBehaviour
     void Update()
     {
         
-        // COMBAT-STATE MOVEMENT [LEFT/RIGHT/JUMP]
-        float xDisplacement = 0f;
+        // /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // 
+        // BASE MOVEMENT
+        //
+        // /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        
+        // LEFT/RIGHT MOVEMENT :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: //
+        int xDirection = 0;
 
         if (Input.GetKey(KeyCode.A) && !Input.GetKey(KeyCode.D)) 
         {
-            xDisplacement = -(1f) * moveSpeed;
+            xDirection = -1;
         }
         if (!Input.GetKey(KeyCode.A) && Input.GetKey(KeyCode.D)) 
         {
-            xDisplacement = moveSpeed;
+            xDirection = 1;
         }
+        
+        movementVector.x = xDirection * moveSpeed;
+        
+        if (!_jumping && controller.isGrounded)
+        {
+            _YVel = 0f;
+            
+            if (Input.GetKeyDown(KeyCode.W))
+            {
+                _previousYVel = jumpForce;
+                _jumping = true;
+            }
+        }
+        
+        if (!controller.isGrounded || _jumping)
+        {
+            _YVel = _previousYVel + gravityScale;
+            movementVector.y = _YVel + (0.5f) * gravityScale;
+            
+            Debug.Log(_previousYVel);
 
-        movementVector.x = xDisplacement * moveSpeed;
-
+            if ((_jumping) && ((movementVector.y <= 0f) || (Input.GetKeyUp(KeyCode.W))))
+            {
+                _jumping = false;
+                movementVector.y = 0f;
+                _YVel = 0f;
+            }
+        }
+        
+        /*
         if (controller.isGrounded)
         {
             _midJump = false;
-            
+
             _coyoteTimer = 0f;
             movementVector.y = 0.001f;
-            
+
             if (Input.GetKeyDown(KeyCode.W) && (!_crouchingCeilingLocked))
             {
                 _midJump = true;
@@ -105,18 +142,19 @@ public class BaseMovement : MonoBehaviour
         else if ((_coyoteTimer < 0.3f) && (!_midJump))
         {
             _coyoteTimer += Time.deltaTime;
-            if (Input.GetKeyDown(KeyCode.W)) 
+            if (Input.GetKeyDown(KeyCode.W))
             {
                 movementVector.y = Mathf.Sqrt(jumpForce * -2f * gravityScale);
-            }        
+            }
         }
+        */
 
-        float yDisplacement;
+        // float yDisplacement;
 
         // CROUCHING
         if (Input.GetKey(KeyCode.S))
         {
-            yDisplacement = gravityScale * Time.deltaTime * 2;
+            // yDisplacement = gravityScale * Time.deltaTime * 2;
 
             if (controller.isGrounded)
             {
@@ -138,7 +176,7 @@ public class BaseMovement : MonoBehaviour
         }
         else
         {
-            yDisplacement = gravityScale * Time.deltaTime;
+            // yDisplacement = gravityScale * Time.deltaTime;
             
             // CHECK IF PLAYER IS ALLOWED TO UNCROUCH WITH OVERHEAD RAYCAST
             LayerMask layerMaskAbove = LayerMask.GetMask("Wall");
@@ -195,11 +233,6 @@ public class BaseMovement : MonoBehaviour
                 _playerTakeOffMomentumMaintained = false;
             }
         }
-
-        if (Input.GetKeyDown(KeyCode.S))
-        {
-            Debug.Log("gerf");
-        }
         
         // Debug.Log(controller.isGrounded + " " + _crouchingCeilingLocked + " " + Input.GetKeyDown(KeyCode.S) + " " + running);
         if ((controller.isGrounded && !_crouchingCeilingLocked && Input.GetKeyDown(KeyCode.S) && _previousRunning) || (_playerLanded && Input.GetKey(KeyCode.S) && Input.GetKey(KeyCode.LeftShift)))
@@ -220,7 +253,7 @@ public class BaseMovement : MonoBehaviour
         if (_sliding)
         {
             // SLIDE CANCEL IF OPPOSITE DIRECTION, JUMP, FALL, OR CROUCH RELEASE
-            if (_slideDirectionSign == -1f)
+            if (_slideDirectionSign == -1)
             {
                 if ((movementVector.x > 0f) || !controller.isGrounded)
                 {
@@ -247,8 +280,8 @@ public class BaseMovement : MonoBehaviour
                 // so that the sliding movement speed decreases to a clamped minimum, rather than 0
                 // this prevents sliding from hindering flow of player movement
                 movementVector.x = _slideDirectionSign *
-                                   ((moveSpeed * moveSpeed * (runSpeedMultiplier - crouchSpeedMultiplier)) *
-                                   (1 - (_slideCounter / slideTimeLength)) + (moveSpeed * moveSpeed * crouchSpeedMultiplier));
+                                   ((moveSpeed * (runSpeedMultiplier - crouchSpeedMultiplier)) *
+                                   (1 - (_slideCounter / slideTimeLength)) + (moveSpeed * crouchSpeedMultiplier));
             }
             else
             {
@@ -271,7 +304,7 @@ public class BaseMovement : MonoBehaviour
             }
         }
         
-        movementVector.y += yDisplacement;
+        // movementVector.y += yDisplacement;
         controller.Move(movementVector * Time.deltaTime);
         Vector3 finalPosition = new Vector3(transform.position.x, transform.position.y, 0f);
         transform.position = finalPosition; // anti-clipping safety measure
@@ -341,7 +374,7 @@ public class BaseMovement : MonoBehaviour
         newCamPos.x /= 130f;
         newCamPos.y /= 130f;
         newCamPos.y += 3f;
-        newCamPos.z = -16f;
+        newCamPos.z = -100f;
 
         playerCamera.transform.position = transform.position + newCamPos;
         
@@ -389,6 +422,8 @@ public class BaseMovement : MonoBehaviour
 
     private void LateUpdate()
     {
+        _previousYVel = _YVel;
+        
         if (!_previousIsGrounded && controller.isGrounded)
         {
             _playerLanded = true;
