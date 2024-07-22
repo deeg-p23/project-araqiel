@@ -7,9 +7,9 @@ using UnityEngine.UI;
 public class BaseMovement : MonoBehaviour
 {
 
-    private CharacterController controller;
+    public CharacterController controller;
     private Animator _animator;
-    private BoxCollider _playerCollider;
+    public BoxCollider _playerCollider;
 
     private string currentState;
     
@@ -26,24 +26,31 @@ public class BaseMovement : MonoBehaviour
     public Camera playerCamera;
 
     [Header("X Movement")]
-    public float moveSpeed;
-    public float runSpeedMultiplier;
-    public float crouchSpeedMultiplier;
+    [Range(0f,5000f)]public float moveSpeed;
+    [Range(0f,2f)]public float runSpeedMultiplier;
+    [Range(0f,1f)]public float crouchSpeedMultiplier;
     
     [Header("Y Movement")]
-    public float jumpForce;
-    public float gravityScale;
+    [Range(0f,5000f)]public float jumpForce;
+    [Range(-5000f,5000f)]public float gravityScale;
+    [Range(0f,1f)]public float coyoteWindowMax;
 
     private float _previousYVel;
     private float _YVel;
     private bool _jumping;
+    private bool _jumpRising;
 
     private float _coyoteTimer;
     private bool _midJump;
     private bool _previousIsGrounded;
     
     [Header("Others...")]
+    [Range(0f, 100f)]public float cameraShiftDamp;
     public bool running;
+
+    public bool isGrounded;
+    private ControllerColliderHit groundHit;
+    private bool edgeCorrecting;
     
     public bool _sliding;
     private float _slideCounter;
@@ -68,16 +75,73 @@ public class BaseMovement : MonoBehaviour
     [Header("UI Elements")] 
     public Image DoorEntryArrow;
 
+
+    private bool leftKey;
+    private bool rightKey;
+    private bool downKey;
+    private bool jumpKey;
+    private bool runKey;
+    private bool interactKey;
+
+    private bool leftKeyDown;
+    private bool rightKeyDown;
+    private bool downKeyDown;
+    private bool jumpKeyDown;
+    private bool runKeyDown;
+    private bool interactKeyDown;
+
+    private bool leftKeyUp;
+    private bool rightKeyUp;
+    private bool downKeyUp;
+    private bool jumpKeyUp;
+    private bool runKeyUp;
+    private bool interactKeyUp;
+
+    private Vector3 mousePos;
+
     void Start()
     {
         movementVector = new Vector3(0, 0, 0);
         controller = GetComponent<CharacterController>();
         _animator = GetComponent<Animator>();
-        _playerCollider = this.GetComponent<BoxCollider>();
     }
 
     void Update()
     {
+        // TEMP INPUT HANDLING
+        // hold
+        leftKey = Input.GetKey(KeyCode.A);
+        rightKey = Input.GetKey(KeyCode.D);
+        downKey = Input.GetKey(KeyCode.S);
+        jumpKey = Input.GetKey(KeyCode.W);
+
+        runKey = Input.GetKey(KeyCode.LeftShift);
+
+        interactKey = Input.GetKey(KeyCode.F);
+        
+        // down
+        leftKeyDown = Input.GetKeyDown(KeyCode.A);
+        rightKeyDown = Input.GetKeyDown(KeyCode.D);
+        downKeyDown = Input.GetKeyDown(KeyCode.S);
+        jumpKeyDown = Input.GetKeyDown(KeyCode.W);
+
+        runKeyDown = Input.GetKeyDown(KeyCode.LeftShift);
+
+        interactKeyDown = Input.GetKeyDown(KeyCode.F);
+        
+        // up
+        leftKeyUp = Input.GetKeyUp(KeyCode.A);
+        rightKeyUp = Input.GetKeyUp(KeyCode.D);
+        downKeyUp = Input.GetKeyUp(KeyCode.S);
+        jumpKeyUp = Input.GetKeyUp(KeyCode.W);
+
+        runKeyUp = Input.GetKeyUp(KeyCode.LeftShift);
+
+        interactKeyUp = Input.GetKeyUp(KeyCode.F);
+        
+        // mouse
+        mousePos = Input.mousePosition;
+        
         
         // /////////////////////////////////////////////////////////////////////////////////////////////////////////////
         // 
@@ -88,83 +152,108 @@ public class BaseMovement : MonoBehaviour
         // LEFT/RIGHT MOVEMENT :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: //
         int xDirection = 0;
 
-        if (Input.GetKey(KeyCode.A) && !Input.GetKey(KeyCode.D)) 
+        if (leftKey && !rightKey) 
         {
             xDirection = -1;
         }
-        if (!Input.GetKey(KeyCode.A) && Input.GetKey(KeyCode.D)) 
+        if (!leftKey && rightKey) 
         {
             xDirection = 1;
         }
         
         movementVector.x = xDirection * moveSpeed;
         
-        if (!_jumping && controller.isGrounded)
+        // JUMPING & FALLING (GRAVITY) :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: //
+        isGrounded = controller.isGrounded;
+        
+        LayerMask layerMaskWall = LayerMask.GetMask("Wall");
+        
+        if (isGrounded)
+        {
+            _jumping = false;
+            
+            if (!Physics.Raycast(transform.position, transform.TransformDirection(Vector3.down), 0.1f, layerMaskWall))
+            {
+                edgeCorrecting = true;
+                
+                Vector3 edgeFallMovement = transform.position - groundHit.point;
+                edgeFallMovement.y = 0;
+                movementVector += (edgeFallMovement);   
+            }
+            else
+            {
+                edgeCorrecting = false;
+            }
+        }
+        else
+        {
+            edgeCorrecting = false;
+        }
+        
+        if (!_jumping && isGrounded)
         {
             _YVel = 0f;
+            _coyoteTimer = 0f;
             
-            if (Input.GetKeyDown(KeyCode.W))
+            if (jumpKeyDown)
             {
                 _previousYVel = jumpForce;
+                _jumpRising = true;
                 _jumping = true;
             }
         }
         
-        if (!controller.isGrounded || _jumping)
+        if (!isGrounded || _jumpRising)
         {
-            _YVel = _previousYVel + gravityScale;
-            movementVector.y = _YVel + (0.5f) * gravityScale;
+            _YVel = _previousYVel + gravityScale * Time.deltaTime;
+            movementVector.y = _YVel + (0.5f) * gravityScale * Time.deltaTime;
             
-            Debug.Log(_previousYVel);
-
-            if ((_jumping) && ((movementVector.y <= 0f) || (Input.GetKeyUp(KeyCode.W))))
+            
+            if (((_jumpRising) && ((movementVector.y <= 0f) || jumpKeyUp)))
             {
-                _jumping = false;
-                movementVector.y = 0f;
-                _YVel = 0f;
+                _jumpRising = false;
+                _YVel /= 2f;
+            }
+
+            if ((_coyoteTimer < coyoteWindowMax) && (!_jumping))
+            {
+                _coyoteTimer += Time.deltaTime;
+                if (jumpKey)
+                {
+                    _YVel = jumpForce;
+                    _jumping = true;
+                }
             }
         }
         
-        /*
-        if (controller.isGrounded)
+        if (_jumpRising &&
+            (Physics.Raycast(transform.position, transform.TransformDirection(Vector3.up), 17f, layerMaskWall)))
         {
-            _midJump = false;
-
-            _coyoteTimer = 0f;
-            movementVector.y = 0.001f;
-
-            if (Input.GetKeyDown(KeyCode.W) && (!_crouchingCeilingLocked))
-            {
-                _midJump = true;
-                movementVector.y = Mathf.Sqrt(jumpForce * -2f * gravityScale);
-            }
+            _jumpRising = false;
+            _YVel = (Mathf.Abs(_YVel) == _YVel) ? (-1) * _YVel / 2f : _YVel;
         }
-        else if ((_coyoteTimer < 0.3f) && (!_midJump))
-        {
-            _coyoteTimer += Time.deltaTime;
-            if (Input.GetKeyDown(KeyCode.W))
-            {
-                movementVector.y = Mathf.Sqrt(jumpForce * -2f * gravityScale);
-            }
-        }
-        */
-
-        // float yDisplacement;
 
         // CROUCHING
-        if (Input.GetKey(KeyCode.S))
+        if (downKey)
         {
-            // yDisplacement = gravityScale * Time.deltaTime * 2;
-
-            if (controller.isGrounded)
+            if (!isGrounded)
+            {
+                if (movementVector.y < 0f)
+                {
+                    movementVector.y *= 2f;
+                }
+                else
+                {
+                    movementVector.y /= 2f;
+                } 
+                
+                _crouchingGrounded = false;
+                _crouchingCeilingLocked = false;
+            }
+            else            
             {
                 _crouchingGrounded = true;
                 movementVector.x *= crouchSpeedMultiplier;
-                _crouchingCeilingLocked = false;
-            }
-            else
-            {
-                _crouchingGrounded = false;
                 _crouchingCeilingLocked = false;
             }
             
@@ -178,14 +267,12 @@ public class BaseMovement : MonoBehaviour
         {
             // yDisplacement = gravityScale * Time.deltaTime;
             
-            // CHECK IF PLAYER IS ALLOWED TO UNCROUCH WITH OVERHEAD RAYCAST
+            // CHECK IF PLAYER IS ALLOWED TO UNCROUCH WITH OVERHEAD RAY CAST
             LayerMask layerMaskAbove = LayerMask.GetMask("Wall");
-            RaycastHit hitAbove;
-            if (!Physics.Raycast(this.transform.position, transform.TransformDirection(Vector3.up), out hitAbove,
-                    3.4875f,
+            if (!Physics.Raycast(this.transform.position, transform.TransformDirection(Vector3.up),
+                    18f,
                     layerMaskAbove))
             {
-
                 controller.height = 9.3f;
                 controller.radius = 2f;
                 controller.center = new Vector3(0f, 4.632017f, 0f);
@@ -203,15 +290,11 @@ public class BaseMovement : MonoBehaviour
             }
         }
         
+        float originRelativeMouseX = mousePos.x - (Screen.width / 2f);
+        float originRelativeMouseY = mousePos.y - (Screen.height / 2f);
         
-        Vector3 mousePos = Input.mousePosition;
-        
-        // divide screen width/height by 2 to get the edge-to-origin length
-        float origin_relative_mousex = mousePos.x - (Screen.width / 2f);
-        float origin_relative_mousey = mousePos.y - (Screen.height / 2f);
-        
-        if (Input.GetKey(KeyCode.LeftShift) && !_crouchingGrounded && !_crouchingCeilingLocked && controller.isGrounded && 
-            (((origin_relative_mousex < 0f) && (movementVector.x < 0f)) || ((origin_relative_mousex > 0f) && (movementVector.x > 0f))))
+        if (runKey && !_crouchingGrounded && !_crouchingCeilingLocked && isGrounded && 
+            (((originRelativeMouseX < 0f) && (movementVector.x < 0f)) || ((originRelativeMouseX > 0f) && (movementVector.x > 0f))))
         {
             running = true;
             movementVector.x *= runSpeedMultiplier;
@@ -223,7 +306,7 @@ public class BaseMovement : MonoBehaviour
 
         if (_playerTakeOffMomentumMaintained)
         {
-            if ((_playerTakeOffLeft == Input.GetKey(KeyCode.A)) && (_playerTakeOffRight == Input.GetKey(KeyCode.D)) && !controller.isGrounded)
+            if ((_playerTakeOffLeft == leftKey) && (_playerTakeOffRight == rightKey) && !isGrounded)
             {
                 _playerTakeOffMomentumMaintained = true;
                 movementVector.x = _playerTakeOffSpeed;
@@ -234,8 +317,7 @@ public class BaseMovement : MonoBehaviour
             }
         }
         
-        // Debug.Log(controller.isGrounded + " " + _crouchingCeilingLocked + " " + Input.GetKeyDown(KeyCode.S) + " " + running);
-        if ((controller.isGrounded && !_crouchingCeilingLocked && Input.GetKeyDown(KeyCode.S) && _previousRunning) || (_playerLanded && Input.GetKey(KeyCode.S) && Input.GetKey(KeyCode.LeftShift)))
+        if ((isGrounded && !_crouchingCeilingLocked && downKeyDown && _previousRunning) || (_playerLanded && downKey && runKey))
         {
             _sliding = true;
             _slideCounter = 0f;
@@ -249,21 +331,26 @@ public class BaseMovement : MonoBehaviour
                 _slideDirectionSign = 1;
             }
         }
+        
+        Debug.Log(controller.velocity.x);
+
 
         if (_sliding)
         {
             // SLIDE CANCEL IF OPPOSITE DIRECTION, JUMP, FALL, OR CROUCH RELEASE
             if (_slideDirectionSign == -1)
             {
-                if ((movementVector.x > 0f) || !controller.isGrounded)
+                if ((movementVector.x > 0f) || !isGrounded)
                 {
+                    Debug.Log("1");
                     _sliding = false;
                 }
             }
             else
             {
-                if ((movementVector.x < 0f) || !controller.isGrounded)
+                if ((movementVector.x < 0f) || !isGrounded)
                 {
+                    Debug.Log("2");
                     _sliding = false;
                 }            
             }
@@ -285,16 +372,19 @@ public class BaseMovement : MonoBehaviour
             }
             else
             {
+                Debug.Log("3");
                 _sliding = false;   
             }
 
+            
             // SLIDE CANCEL IF MOVEMENT HALTS (HITTING A WALL)
-            if (controller.velocity.x == 0f)
+            if ((controller.velocity.x == 0f) && (!_playerLanded))
             {
+                Debug.Log("4");
                 _sliding = false;
             }
 
-            if (controller.isGrounded)
+            if (isGrounded)
             {
                 controller.height = 3.03f;
                 controller.center = new Vector3(0f, 2.12f, 0f);
@@ -303,82 +393,58 @@ public class BaseMovement : MonoBehaviour
                 _playerCollider.center = new Vector3(0f, 2.12f, 0f);
             }
         }
+
+        if (!isGrounded)
+        {
+            controller.height = 7.65f;
+            controller.radius = 2f;
+            controller.center = new Vector3(0f, 4.632017f, 0f);
+            _playerCollider.size = new Vector3(4f, 7.65f, 4f);
+            _playerCollider.center = new Vector3(0f, 4.632017f, 0f);
+        }
         
         // movementVector.y += yDisplacement;
+
         controller.Move(movementVector * Time.deltaTime);
         Vector3 finalPosition = new Vector3(transform.position.x, transform.position.y, 0f);
         transform.position = finalPosition; // anti-clipping safety measure
         
         // SETTING ANIMATOR STATES
-        if (controller.isGrounded)
+        string newState;
+        
+        if (isGrounded)
         {
-            if (movementVector.x != 0)
+            if ((edgeCorrecting) || (movementVector.x == 0))
             {
-                if (_sliding)
-                {
-                    SetAnimationState(SLIDE);
-                }
-                else if (running)
-                {
-                    SetAnimationState(RUN);
-                }
-                else if (_crouchingGrounded)
-                {
-                    SetAnimationState(CROUCH_WALK);
-                }
-                else
-                {
-                    SetAnimationState(STAND_WALK);
-                }
+                newState = _crouchingGrounded ? CROUCH_IDLE : STAND_IDLE;
             }
             else
             {
-                if (_crouchingGrounded)
+                if (_sliding)
                 {
-                    SetAnimationState(CROUCH_IDLE);
+                    newState = SLIDE;
+                }
+                else if (running)
+                {
+                    newState = RUN;
+                }
+                else if (_crouchingGrounded)
+                {
+                    newState = CROUCH_WALK;
                 }
                 else
                 {
-                    SetAnimationState(STAND_IDLE);
+                    newState = STAND_WALK;
                 }
             }
         }
         else
         {
-            SetAnimationState(STAND_JUMP);
+            newState = STAND_JUMP;
         }
+        SetAnimationState(newState);
         
-        // CAMERA MOVEMENT + AIM (mouse position)
-        
-        Vector3 newCamPos = new Vector3();
-
-        newCamPos.x = (Mathf.Abs(origin_relative_mousex) < (Screen.width / 2f)) ? (origin_relative_mousex) : ((origin_relative_mousex < 0f) ? (-1f * Screen.width / 2f) : (Screen.width / 2f));
-        newCamPos.y = (Mathf.Abs(origin_relative_mousey) < (Screen.height / 2f)) ? (origin_relative_mousey) : ((origin_relative_mousey < 0f) ? (-1f * Screen.height / 2f) : (Screen.height / 2f));
-        
-        // Flip player Scale.z if mouse is facing left side of screen
-
-        if (origin_relative_mousex < 0)
-        {
-            this.transform.eulerAngles = new Vector3(0f, -90f, 0f);
-        }
-        else
-        {
-            this.transform.eulerAngles = new Vector3(0f, 90f, 0f);
-        }
-        
-        // THE FOLLOWING ARE MAGIC NUMBERS FOR NOW, MAKE THEM CHANGEABLE VARIABLES LATER ON FOR CUTSCENES?
-        // 130f is a cam scale factor, 
-        // 3f is a cam y-shift factor,
-        // -18f is a cam zoom factor
-
-        newCamPos.x /= 130f;
-        newCamPos.y /= 130f;
-        newCamPos.y += 3f;
-        newCamPos.z = -100f;
-
-        playerCamera.transform.position = transform.position + newCamPos;
-        
-        // PLAYER INTERACTABLE DETECTION VIA RAYCAST
+        // PLAYER INTERACTABLE DETECTION VIA RAY CAST
         int layerMask = 255;
         // layerMask = ~layerMask;
         RaycastHit hit;
@@ -388,7 +454,7 @@ public class BaseMovement : MonoBehaviour
             Collider interactableCollider = hit.collider;
             
             // DOOR INTERACTABLE
-            if (interactableCollider.CompareTag("Door") && (controller.isGrounded))
+            if (interactableCollider.CompareTag("Door") && (isGrounded))
             {
                 Vector3 arrowPlacement3D = playerCamera.WorldToScreenPoint(interactableCollider.transform.position);
                 DoorEntryArrow.rectTransform.anchoredPosition = new Vector2(arrowPlacement3D.x - (Screen.width / 2f),
@@ -397,7 +463,7 @@ public class BaseMovement : MonoBehaviour
                 DoorTransport currentDoor = interactableCollider.GetComponent<DoorTransport>();
                 
                 // Interactable Input for Door to Enter
-                if ((Input.GetKeyDown(KeyCode.F)) && (!currentDoor.doorLocked))
+                if (interactKeyDown && (!currentDoor.doorLocked))
                 {
                     controller.enabled = false;
                     
@@ -408,7 +474,7 @@ public class BaseMovement : MonoBehaviour
                     warpedPosition.y += (this.transform.localScale.y / 2f);
                     warpedPosition.z = 0f; // KEEP PLAYER ON Z = 0 FOR PROPER PLATFORM ALIGNMENT
                     controller.transform.position = warpedPosition;
-
+                    
                     controller.enabled = true;
                 }
             }
@@ -424,7 +490,7 @@ public class BaseMovement : MonoBehaviour
     {
         _previousYVel = _YVel;
         
-        if (!_previousIsGrounded && controller.isGrounded)
+        if (!_previousIsGrounded && isGrounded)
         {
             _playerLanded = true;
         }
@@ -433,17 +499,58 @@ public class BaseMovement : MonoBehaviour
             _playerLanded = false;
         }
 
-        if (_previousIsGrounded && !controller.isGrounded)
+        if (_previousIsGrounded && !isGrounded)
         {
-            _playerTakeOffSpeed = movementVector.x;
+            _playerTakeOffSpeed = _previousMovementSpeed;
             _playerTakeOffMomentumMaintained = true;
-            _playerTakeOffLeft = Input.GetKey(KeyCode.A);
-            _playerTakeOffRight = Input.GetKey(KeyCode.D);
+            _playerTakeOffLeft = leftKey;
+            _playerTakeOffRight = rightKey;
         }
         
-        _previousIsGrounded = controller.isGrounded;
+        _previousIsGrounded = isGrounded;
         _previousRunning = running;
         _previousMovementSpeed = movementVector.x;    
+        
+        Vector3 newCamPos = new Vector3();
+        
+        float originRelativeMouseX = mousePos.x - (Screen.width / 2f);
+        float originRelativeMouseY = mousePos.y - (Screen.height / 2f);
+        
+        newCamPos.x = (Mathf.Abs(originRelativeMouseX) < (Screen.width / 2f)) ? (originRelativeMouseX) : 
+            ((originRelativeMouseX < 0f) ? (-1f * Screen.width / 2f) : (Screen.width / 2f));
+        newCamPos.y = (Mathf.Abs(originRelativeMouseY) < (Screen.height / 2f)) ? (originRelativeMouseY) : 
+            ((originRelativeMouseY < 0f) ? (-1f * Screen.height / 2f) : (Screen.height / 2f));
+
+        int mouseXDirection;
+            
+        if (originRelativeMouseX < 0)
+        {
+            this.transform.eulerAngles = new Vector3(0f, -90f, 0f);
+            mouseXDirection = -1;
+        }
+        else
+        {
+            this.transform.eulerAngles = new Vector3(0f, 90f, 0f);
+            mouseXDirection = 1;
+        }
+        
+        newCamPos.x /= 20f;
+        newCamPos.y /= 20f;
+        newCamPos.y += 22f;
+        newCamPos.z -= 80f;
+
+        Vector3 playerFollowPos = transform.position;
+        playerFollowPos.y += 22f;
+        playerFollowPos.z = -80f;
+
+        newCamPos += transform.position;
+        
+        playerCamera.transform.position = Vector3.Lerp(playerCamera.transform.position, newCamPos, Time.deltaTime * cameraShiftDamp);
+    }
+    
+    private void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        groundHit = hit;
     }
 
     void SetAnimationState(string nextState)
@@ -453,7 +560,7 @@ public class BaseMovement : MonoBehaviour
             return;
         }
 
-        _animator.CrossFade(nextState, 0.1f);
+        _animator.CrossFade(nextState, 0.025f);
         currentState = nextState;
     }
 }
