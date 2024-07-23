@@ -22,13 +22,14 @@ public class BaseMovement : MonoBehaviour
     private const string STAND_JUMP = "Armature|JUMP_START_UNARMED";
     private const string RUN = "RUN";
     private const string SLIDE = "Armature|SLIDE";
+    private const string HANG = "HANG";
     
     public Camera playerCamera;
 
     [Header("X Movement")]
     [Range(0f,5000f)]public float moveSpeed;
     [Range(0f,2f)]public float runSpeedMultiplier;
-    [Range(0f,1f)]public float crouchSpeedMultiplier;
+    [Range(0f, 1f)] public float crouchSpeedMultiplier;
     
     [Header("Y Movement")]
     [Range(0f,5000f)]public float jumpForce;
@@ -38,15 +39,24 @@ public class BaseMovement : MonoBehaviour
     private float _previousYVel;
     private float _YVel;
     private bool _jumping;
-    private bool _jumpRising;
+    public bool jumpRising;
 
     private float _coyoteTimer;
     private bool _midJump;
     private bool _previousIsGrounded;
     
+    private int _overlapSphereFrameCheck;
+    public Vector3 ledgePoint;
+    public bool ledgeGrabbed;
+    public int ledgeHangDirection;
+    public float ledgeGrabCooldown;
+    public GameObject ledgeGrabber;
+    
     [Header("Others...")]
     [Range(0f, 100f)]public float cameraShiftDamp;
     public bool running;
+
+    public int mouseXDirection;
 
     public bool isGrounded;
     private ControllerColliderHit groundHit;
@@ -99,11 +109,15 @@ public class BaseMovement : MonoBehaviour
 
     private Vector3 mousePos;
 
+    private LayerMask layerMaskWall;
+
     void Start()
     {
         movementVector = new Vector3(0, 0, 0);
         controller = GetComponent<CharacterController>();
         _animator = GetComponent<Animator>();
+
+        layerMaskWall = LayerMask.GetMask("Wall");
     }
 
     void Update()
@@ -149,6 +163,18 @@ public class BaseMovement : MonoBehaviour
         //
         // /////////////////////////////////////////////////////////////////////////////////////////////////////////////
         
+        float originRelativeMouseX = mousePos.x - (Screen.width / 2f);
+        float originRelativeMouseY = mousePos.y - (Screen.height / 2f);
+
+        if (originRelativeMouseX < 0f)
+        {
+            mouseXDirection = -1;
+        }
+        else
+        {
+            mouseXDirection = 1;
+        }
+        
         // LEFT/RIGHT MOVEMENT :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: //
         int xDirection = 0;
 
@@ -166,23 +192,24 @@ public class BaseMovement : MonoBehaviour
         // JUMPING & FALLING (GRAVITY) :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: //
         isGrounded = controller.isGrounded;
         
-        LayerMask layerMaskWall = LayerMask.GetMask("Wall");
-        
         if (isGrounded)
         {
             _jumping = false;
-            
-            if (!Physics.Raycast(transform.position, transform.TransformDirection(Vector3.down), 0.1f, layerMaskWall))
+
+            if (movementVector.x == 0)
             {
-                edgeCorrecting = true;
+                if (!Physics.Raycast(transform.position, transform.TransformDirection(Vector3.down), 0.1f, layerMaskWall))
+                {
+                    edgeCorrecting = true;
                 
-                Vector3 edgeFallMovement = transform.position - groundHit.point;
-                edgeFallMovement.y = 0;
-                movementVector += (edgeFallMovement);   
-            }
-            else
-            {
-                edgeCorrecting = false;
+                    Vector3 edgeFallMovement = transform.position - groundHit.point;
+                    edgeFallMovement.y = 0;
+                    movementVector += (edgeFallMovement);   
+                }
+                else
+                {
+                    edgeCorrecting = false;
+                }   
             }
         }
         else
@@ -190,28 +217,30 @@ public class BaseMovement : MonoBehaviour
             edgeCorrecting = false;
         }
         
-        if (!_jumping && isGrounded)
+        if ((!_jumping && isGrounded) || (ledgeGrabbed))
         {
             _YVel = 0f;
             _coyoteTimer = 0f;
             
-            if (jumpKeyDown)
+            if (jumpKeyDown && !_crouchingCeilingLocked)
             {
+                ledgeGrabbed = false;
+
                 _previousYVel = jumpForce;
-                _jumpRising = true;
+                jumpRising = true;
                 _jumping = true;
             }
         }
         
-        if (!isGrounded || _jumpRising)
+        if (!isGrounded || jumpRising)
         {
             _YVel = _previousYVel + gravityScale * Time.deltaTime;
             movementVector.y = _YVel + (0.5f) * gravityScale * Time.deltaTime;
             
             
-            if (((_jumpRising) && ((movementVector.y <= 0f) || jumpKeyUp)))
+            if (((jumpRising) && ((movementVector.y <= 0f) || jumpKeyUp)))
             {
-                _jumpRising = false;
+                jumpRising = false;
                 _YVel /= 2f;
             }
 
@@ -226,10 +255,10 @@ public class BaseMovement : MonoBehaviour
             }
         }
         
-        if (_jumpRising &&
+        if (jumpRising &&
             (Physics.Raycast(transform.position, transform.TransformDirection(Vector3.up), 17f, layerMaskWall)))
         {
-            _jumpRising = false;
+            jumpRising = false;
             _YVel = (Mathf.Abs(_YVel) == _YVel) ? (-1) * _YVel / 2f : _YVel;
         }
 
@@ -238,6 +267,13 @@ public class BaseMovement : MonoBehaviour
         {
             if (!isGrounded)
             {
+                if (ledgeGrabbed)
+                {
+                    ledgeGrabCooldown = 0f;
+                    ledgeGrabbed = false;
+                    movementVector.y = 0f;
+                }
+                
                 if (movementVector.y < 0f)
                 {
                     movementVector.y *= 2f;
@@ -258,9 +294,9 @@ public class BaseMovement : MonoBehaviour
             }
             
             controller.height = 5.8125f;
-            controller.radius = 2f;
+            controller.radius = 1.5f;
             controller.center = new Vector3(0f, 2.9f, 0f);
-            _playerCollider.size = new Vector3(4f, 5.8125f, 4f);
+            _playerCollider.size = new Vector3(3f, 5.8125f, 3f);
             _playerCollider.center = new Vector3(0f, 2.9f, 0f);
         }
         else
@@ -274,9 +310,9 @@ public class BaseMovement : MonoBehaviour
                     layerMaskAbove))
             {
                 controller.height = 9.3f;
-                controller.radius = 2f;
+                controller.radius = 1.5f;
                 controller.center = new Vector3(0f, 4.632017f, 0f);
-                _playerCollider.size = new Vector3(4f, 9.3f, 4f);
+                _playerCollider.size = new Vector3(3f, 9.3f, 3f);
                 _playerCollider.center = new Vector3(0f, 4.632017f, 0f);
 
                 _crouchingGrounded = false;
@@ -289,10 +325,7 @@ public class BaseMovement : MonoBehaviour
                 _crouchingGrounded = true;
             }
         }
-        
-        float originRelativeMouseX = mousePos.x - (Screen.width / 2f);
-        float originRelativeMouseY = mousePos.y - (Screen.height / 2f);
-        
+
         if (runKey && !_crouchingGrounded && !_crouchingCeilingLocked && isGrounded && 
             (((originRelativeMouseX < 0f) && (movementVector.x < 0f)) || ((originRelativeMouseX > 0f) && (movementVector.x > 0f))))
         {
@@ -331,9 +364,6 @@ public class BaseMovement : MonoBehaviour
                 _slideDirectionSign = 1;
             }
         }
-        
-        Debug.Log(controller.velocity.x);
-
 
         if (_sliding)
         {
@@ -342,7 +372,6 @@ public class BaseMovement : MonoBehaviour
             {
                 if ((movementVector.x > 0f) || !isGrounded)
                 {
-                    Debug.Log("1");
                     _sliding = false;
                 }
             }
@@ -350,7 +379,6 @@ public class BaseMovement : MonoBehaviour
             {
                 if ((movementVector.x < 0f) || !isGrounded)
                 {
-                    Debug.Log("2");
                     _sliding = false;
                 }            
             }
@@ -372,7 +400,6 @@ public class BaseMovement : MonoBehaviour
             }
             else
             {
-                Debug.Log("3");
                 _sliding = false;   
             }
 
@@ -380,7 +407,6 @@ public class BaseMovement : MonoBehaviour
             // SLIDE CANCEL IF MOVEMENT HALTS (HITTING A WALL)
             if ((controller.velocity.x == 0f) && (!_playerLanded))
             {
-                Debug.Log("4");
                 _sliding = false;
             }
 
@@ -397,14 +423,30 @@ public class BaseMovement : MonoBehaviour
         if (!isGrounded)
         {
             controller.height = 7.65f;
-            controller.radius = 2f;
+            controller.radius = 1.5f;
             controller.center = new Vector3(0f, 4.632017f, 0f);
-            _playerCollider.size = new Vector3(4f, 7.65f, 4f);
+            _playerCollider.size = new Vector3(3f, 7.65f, 3f);
             _playerCollider.center = new Vector3(0f, 4.632017f, 0f);
         }
-        
-        // movementVector.y += yDisplacement;
 
+
+        if (ledgeGrabCooldown < 0.1f)
+        {
+            ledgeGrabCooldown += Time.deltaTime;
+            ledgeGrabber.SetActive(false);
+        }
+        else
+        {
+            ledgeGrabber.SetActive(true);
+        }
+        
+        if (ledgeGrabbed)
+        {
+            transform.position = ledgePoint;
+            movementVector = Vector3.zero;
+            _YVel = 0f;
+        }
+        
         controller.Move(movementVector * Time.deltaTime);
         Vector3 finalPosition = new Vector3(transform.position.x, transform.position.y, 0f);
         transform.position = finalPosition; // anti-clipping safety measure
@@ -440,7 +482,14 @@ public class BaseMovement : MonoBehaviour
         }
         else
         {
-            newState = STAND_JUMP;
+            if (ledgeGrabbed)
+            {
+                newState = HANG;
+            }
+            else
+            {
+                newState = STAND_JUMP;
+            }
         }
         SetAnimationState(newState);
         
@@ -484,6 +533,10 @@ public class BaseMovement : MonoBehaviour
                 DoorEntryArrow.rectTransform.anchoredPosition = new Vector2((-2f) * Screen.width, (-2f) * Screen.height);
             }
         }
+        else
+        {
+            DoorEntryArrow.rectTransform.anchoredPosition = new Vector2((-2f) * Screen.width, (-2f) * Screen.height);
+        }
     }
 
     private void LateUpdate()
@@ -521,9 +574,11 @@ public class BaseMovement : MonoBehaviour
         newCamPos.y = (Mathf.Abs(originRelativeMouseY) < (Screen.height / 2f)) ? (originRelativeMouseY) : 
             ((originRelativeMouseY < 0f) ? (-1f * Screen.height / 2f) : (Screen.height / 2f));
 
-        int mouseXDirection;
-            
-        if (originRelativeMouseX < 0)
+        if (ledgeGrabbed)
+        {
+            this.transform.eulerAngles = new Vector3(0f, ledgeHangDirection * 90f, 0f);
+        }
+        else if (originRelativeMouseX < 0)
         {
             this.transform.eulerAngles = new Vector3(0f, -90f, 0f);
             mouseXDirection = -1;
@@ -553,14 +608,27 @@ public class BaseMovement : MonoBehaviour
         groundHit = hit;
     }
 
+    private void OnDrawGizmos()
+    {
+        if (!controller.isGrounded)
+        {
+            Gizmos.color = Color.red;
+
+            Gizmos.DrawSphere(transform.position + new Vector3(3f * mouseXDirection, 17f, 0f), 0.5f);
+            Gizmos.DrawSphere(transform.position + new Vector3(3f * mouseXDirection, 13f, 0f), 0.5f);
+
+        }
+    }
+
     void SetAnimationState(string nextState)
     {
         if (currentState == nextState)
         {
             return;
         }
-
+        
         _animator.CrossFade(nextState, 0.025f);
+
         currentState = nextState;
     }
 }
