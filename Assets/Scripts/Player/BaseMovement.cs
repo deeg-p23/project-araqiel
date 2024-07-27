@@ -332,7 +332,7 @@ public class BaseMovement : MonoBehaviour
             }
         }
         
-        Debug.Log(controller.velocity.x);
+        
 
 
         if (_sliding)
@@ -342,7 +342,6 @@ public class BaseMovement : MonoBehaviour
             {
                 if ((movementVector.x > 0f) || !isGrounded)
                 {
-                    Debug.Log("1");
                     _sliding = false;
                 }
             }
@@ -350,7 +349,7 @@ public class BaseMovement : MonoBehaviour
             {
                 if ((movementVector.x < 0f) || !isGrounded)
                 {
-                    Debug.Log("2");
+                    
                     _sliding = false;
                 }            
             }
@@ -372,7 +371,7 @@ public class BaseMovement : MonoBehaviour
             }
             else
             {
-                Debug.Log("3");
+                
                 _sliding = false;   
             }
 
@@ -380,7 +379,7 @@ public class BaseMovement : MonoBehaviour
             // SLIDE CANCEL IF MOVEMENT HALTS (HITTING A WALL)
             if ((controller.velocity.x == 0f) && (!_playerLanded))
             {
-                Debug.Log("4");
+                
                 _sliding = false;
             }
 
