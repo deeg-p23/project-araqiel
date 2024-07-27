@@ -45,6 +45,8 @@ public class Ranged : MonoBehaviour
         aimLocation = playerCamera.ScreenToWorldPoint(mousePosition);
         aimLocation.z = 0f;
 
+        leftHandIK.weight = 1f;
+
         if (baseMovement._sliding)
         {
             // gun radial origin when sliding to the left
@@ -66,7 +68,15 @@ public class Ranged : MonoBehaviour
         // gun radial origin whenever else player is aiming
         else if (!baseMovement.isGrounded)
 		{
-            _playerGunRadiusOffset = new Vector3(0f, 13.5f, 0f);
+            if (baseMovement.ledgeGrabbed)
+            {
+                _playerGunRadiusOffset = new Vector3(-3f * baseMovement.ledgeHangDirection, 9.5f, 0f);
+                leftHandIK.weight = 0f;
+            }
+            else
+            {
+                _playerGunRadiusOffset = new Vector3(0f, 13.5f, 0f);
+            }
 		}
 		else
         {
